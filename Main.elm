@@ -1,13 +1,9 @@
 module Main exposing (main)
 
-{-
-   This example was inspired by https://open.gl/depthstencils
-   It demonstrates how to use the stencil buffer.
--}
-
 import Browser
-import Browser.Events exposing (onAnimationFrameDelta)
-import Html exposing (Html)
+import Browser.Dom exposing (Viewport, getViewport)
+import Browser.Events exposing (onAnimationFrameDelta, onResize)
+import Html exposing (Html, text)
 import Html.Attributes exposing (height, style, width)
 import Json.Decode exposing (Value)
 import Math.Matrix4 as Mat4 exposing (Mat4)
@@ -24,11 +20,20 @@ import WebGL.Texture as Texture exposing (Error, Texture)
 type alias Model =
     { texture : Maybe Texture
     , theta : Float
+    , size : Maybe Size
+    }
+
+
+type alias Size =
+    { w : Int
+    , h : Int
     }
 
 
 type Msg
     = TextureLoaded (Result Error Texture)
+    | GotViewport (Result Error Viewport)
+    | Resize Int Int
     | Animate Float
 
 
@@ -41,20 +46,45 @@ update action model =
         Animate dt ->
             ( { model | theta = model.theta + dt / 10000 }, Cmd.none )
 
+        Resize w h ->
+            ( { model | size = Just { w = w, h = h } }, Cmd.none )
+
+        GotViewport result ->
+            case result of
+                Ok viewport ->
+                    update
+                        (Resize
+                            (round viewport.viewport.width)
+                            (round viewport.viewport.height)
+                        )
+                        model
+
+                Err error ->
+                    ( model, Cmd.none )
+
 
 init : ( Model, Cmd Msg )
 init =
-    ( { texture = Nothing, theta = 0 }
-    , Task.attempt TextureLoaded (Texture.load (tile ( 53.0, 10.0 )))
+    ( { texture = Nothing
+      , theta = 0
+      , size = Nothing
+      }
+    , Cmd.batch
+        [ ( 53.58371, 10.05126 )
+            |> tile
+            |> Texture.load
+            |> Task.attempt TextureLoaded
+        , Task.attempt GotViewport getViewport
+        ]
     )
 
 
 main : Program Value Model Msg
 main =
-    Browser.element
+    Browser.document
         { init = \_ -> init
         , view = view
-        , subscriptions = \model -> onAnimationFrameDelta Animate
+        , subscriptions = subscriptions
         , update = update
         }
 
@@ -67,7 +97,7 @@ tile : LatLng -> String
 tile latlng =
     let
         ( x, y, z ) =
-            latLngToXyzTile latlng 10
+            latLngToXyzTile latlng 18
     in
     "https://stamen-tiles.a.ssl.fastly.net/watercolor/"
         ++ String.fromInt z
@@ -101,20 +131,41 @@ ln x =
     logBase e x
 
 
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.batch
+        [ onResize Resize
+        , onAnimationFrameDelta Animate
+        ]
+
+
 
 -- View
 
 
-view : Model -> Html Msg
-view { texture, theta } =
+view : Model -> Browser.Document Msg
+view model =
+    { title = "Map, yo!"
+    , body =
+        case model.size of
+            Nothing ->
+                [ text "no size yet..." ]
+
+            Just size ->
+                [ viewGl ( size, model.theta, model.texture ) ]
+    }
+
+
+viewGl : ( Size, Float, Maybe Texture ) -> Html Msg
+viewGl ( size, theta, texture ) =
     WebGL.toHtmlWith
         [ WebGL.alpha True
         , WebGL.antialias
         , WebGL.depth 1
         , WebGL.stencil 0
         ]
-        [ width 400
-        , height 400
+        [ width size.w
+        , height size.h
         , style "display" "block"
         ]
         (texture
@@ -341,7 +392,7 @@ floorFragment =
         precision mediump float;
 
         void main () {
-          gl_FragColor = vec4(0.0, 1.0, 0.0, 0.5);
+          gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         }
 
     |]
