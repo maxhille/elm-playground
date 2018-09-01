@@ -187,60 +187,11 @@ perspective angle =
 scene : Mat4 -> Texture -> List Entity
 scene camera texture =
     [ WebGL.entity
-        crateVertex
-        crateFragment
-        crateMesh
+        tileVertex
+        tileFragment
+        tileMesh
         { texture = texture
         , perspective = camera
-        }
-    , WebGL.entityWith
-        [ DepthTest.less
-            { write = False
-            , near = 0
-            , far = 1
-            }
-        , StencilTest.test
-            { ref = 1
-            , mask = 0xFF
-            , test = StencilTest.always
-            , fail = StencilTest.keep
-            , zfail = StencilTest.keep
-            , zpass = StencilTest.replace
-            , writeMask = 0xFF
-            }
-        ]
-        floorVertex
-        floorFragment
-        floorMesh
-        { texture = texture
-        , perspective = camera
-        }
-    , WebGL.entityWith
-        [ StencilTest.test
-            { ref = 1
-            , mask = 0xFF
-            , test = StencilTest.equal
-            , fail = StencilTest.keep
-            , zfail = StencilTest.keep
-            , zpass = StencilTest.keep
-            , writeMask = 0
-            }
-        , DepthTest.default
-        , Blend.custom
-            { r = 0
-            , g = 0
-            , b = 0
-            , a = 0.5
-            , color = Blend.customAdd Blend.constantAlpha Blend.zero
-            , alpha = Blend.customAdd Blend.one Blend.zero
-            }
-        ]
-        crateVertex
-        crateFragment
-        crateMesh
-        { texture = texture
-        , perspective =
-            Mat4.mul camera (Mat4.makeScale (vec3 1 -1 1))
         }
     ]
 
@@ -255,78 +206,30 @@ type alias Vertex =
     }
 
 
-crateMesh : Mesh Vertex
-crateMesh =
-    [ ( 0, 0 ), ( 90, 0 ), ( 180, 0 ), ( 270, 0 ), ( 0, 90 ), ( 0, 270 ) ]
-        |> List.concatMap rotatedFace
+tileMesh : Mesh Vertex
+tileMesh =
+    square
         |> WebGL.triangles
-
-
-rotatedFace : ( Float, Float ) -> List ( Vertex, Vertex, Vertex )
-rotatedFace ( angleXZ, angleYZ ) =
-    let
-        transformMat =
-            List.foldr Mat4.mul
-                Mat4.identity
-                [ Mat4.makeTranslate (vec3 0 1 0)
-                , Mat4.makeRotate (degrees angleXZ) Vec3.j
-                , Mat4.makeRotate (degrees angleYZ) Vec3.i
-                , Mat4.makeTranslate (vec3 0 0 1)
-                ]
-
-        transform vertex =
-            { vertex
-                | position =
-                    Mat4.transform
-                        transformMat
-                        vertex.position
-            }
-
-        transformTriangle ( a, b, c ) =
-            ( transform a, transform b, transform c )
-    in
-    List.map transformTriangle square
 
 
 square : List ( Vertex, Vertex, Vertex )
 square =
     let
-        topLeft =
-            { position = vec3 -1 1 0, coord = vec2 0 1 }
+        nw =
+            { position = vec3 -1 0 -1, coord = vec2 0 1 }
 
-        topRight =
-            { position = vec3 1 1 0, coord = vec2 1 1 }
+        ne =
+            { position = vec3 1 0 -1, coord = vec2 1 1 }
 
-        bottomLeft =
-            { position = vec3 -1 -1 0, coord = vec2 0 0 }
+        sw =
+            { position = vec3 -1 0 1, coord = vec2 0 0 }
 
-        bottomRight =
-            { position = vec3 1 -1 0, coord = vec2 1 0 }
+        se =
+            { position = vec3 1 0 1, coord = vec2 1 0 }
     in
-    [ ( topLeft, topRight, bottomLeft )
-    , ( bottomLeft, topRight, bottomRight )
+    [ ( nw, ne, sw )
+    , ( sw, ne, se )
     ]
-
-
-floorMesh : Mesh { position : Vec3 }
-floorMesh =
-    let
-        topLeft =
-            { position = vec3 -2 0 -2 }
-
-        topRight =
-            { position = vec3 2 0 -2 }
-
-        bottomLeft =
-            { position = vec3 -2 0 2 }
-
-        bottomRight =
-            { position = vec3 2 0 2 }
-    in
-    WebGL.triangles
-        [ ( topLeft, topRight, bottomLeft )
-        , ( bottomLeft, topRight, bottomRight )
-        ]
 
 
 
@@ -339,8 +242,8 @@ type alias Uniforms =
     }
 
 
-crateVertex : Shader Vertex Uniforms { vcoord : Vec2 }
-crateVertex =
+tileVertex : Shader Vertex Uniforms { vcoord : Vec2 }
+tileVertex =
     [glsl|
 
         attribute vec3 position;
@@ -356,8 +259,8 @@ crateVertex =
     |]
 
 
-crateFragment : Shader {} { u | texture : Texture } { vcoord : Vec2 }
-crateFragment =
+tileFragment : Shader {} { u | texture : Texture } { vcoord : Vec2 }
+tileFragment =
     [glsl|
 
         precision mediump float;
@@ -366,33 +269,6 @@ crateFragment =
 
         void main () {
           gl_FragColor = texture2D(texture, vcoord);
-        }
-
-    |]
-
-
-floorVertex : Shader { position : Vec3 } Uniforms {}
-floorVertex =
-    [glsl|
-
-        attribute vec3 position;
-        uniform mat4 perspective;
-
-        void main () {
-          gl_Position = perspective * vec4(position, 1.0);
-        }
-
-    |]
-
-
-floorFragment : Shader attributes Uniforms {}
-floorFragment =
-    [glsl|
-
-        precision mediump float;
-
-        void main () {
-          gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         }
 
     |]
