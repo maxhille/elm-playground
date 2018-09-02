@@ -131,7 +131,7 @@ makeXyzs : Location -> List ( Int, Int, Int )
 makeXyzs location =
     let
         dist =
-            3
+            5
 
         ( x, y, z ) =
             locationToXyz location
