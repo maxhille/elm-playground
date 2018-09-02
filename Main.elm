@@ -3,6 +3,7 @@ module Main exposing (main)
 import Browser
 import Browser.Dom exposing (Viewport, getViewport)
 import Browser.Events exposing (onAnimationFrameDelta, onResize)
+import Dict exposing (Dict)
 import Html exposing (Html, text)
 import Html.Attributes exposing (height, style, width)
 import Json.Decode exposing (Value)
@@ -18,10 +19,15 @@ import WebGL.Texture as Texture exposing (Error, Texture)
 
 
 type alias Model =
-    { texture : Maybe Texture
-    , theta : Float
-    , size : Maybe Size
+    { tiles : Tiles
+    , windowSize : Maybe Size
+    , location : Location
+    , bearing : Float
     }
+
+
+type alias Tiles =
+    Dict ( Int, Int ) Tile
 
 
 type alias Size =
@@ -30,30 +36,60 @@ type alias Size =
     }
 
 
+type alias Location =
+    { lat : Float
+    , lng : Float
+    }
+
+
 type Msg
-    = TextureLoaded (Result Error Texture)
+    = TextureLoaded ( Int, Int, Int ) (Result Error Texture)
     | GotViewport (Result Error Viewport)
-    | Resize Int Int
+    | UpdateLocation Location
+    | ResizeWindow Int Int
     | Animate Float
+
+
+type TextureState
+    = Idle
+    | Updating
+    | Loaded Texture
+
+
+type alias Tile =
+    { texture : TextureState
+    , x : Int
+    , y : Int
+    , z : Int
+    }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update action model =
     case action of
-        TextureLoaded textureResult ->
-            ( { model | texture = Result.toMaybe textureResult }, Cmd.none )
+        TextureLoaded ( x, y, z ) textureResult ->
+            case textureResult of
+                Ok texture ->
+                    ( { model
+                        | tiles = updateTile model.tiles (Tile (Loaded texture) x y z)
+                      }
+                    , Cmd.none
+                    )
+
+                Err error ->
+                    ( model, Cmd.none )
 
         Animate dt ->
-            ( { model | theta = model.theta + dt / 10000 }, Cmd.none )
+            ( { model | bearing = model.bearing + dt / 10000 }, Cmd.none )
 
-        Resize w h ->
-            ( { model | size = Just { w = w, h = h } }, Cmd.none )
+        ResizeWindow w h ->
+            ( { model | windowSize = Just { w = w, h = h } }, Cmd.none )
 
         GotViewport result ->
             case result of
                 Ok viewport ->
                     update
-                        (Resize
+                        (ResizeWindow
                             (round viewport.viewport.width)
                             (round viewport.viewport.height)
                         )
@@ -62,19 +98,115 @@ update action model =
                 Err error ->
                     ( model, Cmd.none )
 
+        UpdateLocation location ->
+            let
+                newTiles =
+                    updateTiles model.tiles model.location
+
+                idleTiles =
+                    Dict.filter (\k tile -> tile.texture == Idle) newTiles
+            in
+            ( { model | location = location, tiles = newTiles }
+            , loadTiles idleTiles
+            )
+
+
+updateTile : Tiles -> Tile -> Tiles
+updateTile tiles tile =
+    Dict.insert ( tile.x, tile.y ) tile tiles
+
+
+updateTiles : Tiles -> Location -> Tiles
+updateTiles tiles location =
+    -- TODO needs diffing
+    makeXyzs location
+        |> List.foldr
+            (\( x, y, z ) acc ->
+                Dict.insert ( x, y ) (Tile Idle x y z) acc
+            )
+            tiles
+
+
+makeXyzs : Location -> List ( Int, Int, Int )
+makeXyzs location =
+    let
+        dist =
+            3
+
+        ( x, y, z ) =
+            locationToXyz location
+    in
+    List.range -dist dist
+        |> List.concatMap
+            (\dx ->
+                List.range -dist dist
+                    |> List.map
+                        (\dy ->
+                            ( x + dx, y + dy, z )
+                        )
+            )
+
+
+locationToXyz : Location -> ( Int, Int, Int )
+locationToXyz location =
+    let
+        zoom =
+            18
+
+        lat_rad =
+            degrees location.lat
+
+        n =
+            toFloat (2 ^ zoom)
+
+        xtile =
+            round ((location.lng + 180.0) / 360.0 * n)
+
+        ytile =
+            round ((1.0 - ln (tan lat_rad + (1 / cos lat_rad)) / pi) / 2.0 * n)
+    in
+    ( xtile, ytile, zoom )
+
+
+ln : Float -> Float
+ln x =
+    logBase e x
+
+
+loadTiles : Tiles -> Cmd Msg
+loadTiles tiles =
+    Cmd.batch (List.map loadTile (Dict.values tiles))
+
+
+loadTile : Tile -> Cmd Msg
+loadTile tile =
+    tileUrl tile
+        |> Texture.load
+        |> Task.attempt (TextureLoaded ( tile.x, tile.y, tile.z ))
+
+
+emptyTiles : Tiles
+emptyTiles =
+    Dict.empty
+
 
 init : ( Model, Cmd Msg )
 init =
-    ( { texture = Nothing
-      , theta = 0
-      , size = Nothing
-      }
+    let
+        model =
+            { tiles = emptyTiles
+            , windowSize = Nothing
+            , bearing = 0
+            , location = Location 53.58371 10.05126
+            }
+
+        ( model2, cmd ) =
+            update (UpdateLocation model.location) model
+    in
+    ( model2
     , Cmd.batch
-        [ ( 53.58371, 10.05126 )
-            |> tile
-            |> Texture.load
-            |> Task.attempt TextureLoaded
-        , Task.attempt GotViewport getViewport
+        [ Task.attempt GotViewport getViewport
+        , cmd
         ]
     )
 
@@ -89,52 +221,21 @@ main =
         }
 
 
-type alias LatLng =
-    ( Float, Float )
-
-
-tile : LatLng -> String
-tile latlng =
-    let
-        ( x, y, z ) =
-            latLngToXyzTile latlng 18
-    in
+tileUrl : Tile -> String
+tileUrl tile =
     "https://stamen-tiles.a.ssl.fastly.net/watercolor/"
-        ++ String.fromInt z
+        ++ String.fromInt tile.z
         ++ "/"
-        ++ String.fromInt x
+        ++ String.fromInt tile.x
         ++ "/"
-        ++ String.fromInt y
+        ++ String.fromInt tile.y
         ++ ".jpg"
-
-
-latLngToXyzTile : LatLng -> Int -> ( Int, Int, Int )
-latLngToXyzTile ( lat, lng ) zoom =
-    let
-        lat_rad =
-            degrees lat
-
-        n =
-            toFloat (2 ^ zoom)
-
-        xtile =
-            round ((lng + 180.0) / 360.0 * n)
-
-        ytile =
-            round ((1.0 - ln (tan lat_rad + (1 / cos lat_rad)) / pi) / 2.0 * n)
-    in
-    ( xtile, ytile, zoom )
-
-
-ln : Float -> Float
-ln x =
-    logBase e x
 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ onResize Resize
+        [ onResize ResizeWindow
         , onAnimationFrameDelta Animate
         ]
 
@@ -147,17 +248,17 @@ view : Model -> Browser.Document Msg
 view model =
     { title = "Map, yo!"
     , body =
-        case model.size of
+        case model.windowSize of
             Nothing ->
                 [ text "no size yet..." ]
 
             Just size ->
-                [ viewGl ( size, model.theta, model.texture ) ]
+                [ viewGl size model.location model.bearing model.tiles ]
     }
 
 
-viewGl : ( Size, Float, Maybe Texture ) -> Html Msg
-viewGl ( size, theta, texture ) =
+viewGl : Size -> Location -> Float -> Tiles -> Html Msg
+viewGl size location bearing tiles =
     WebGL.toHtmlWith
         [ WebGL.alpha True
         , WebGL.antialias
@@ -168,10 +269,7 @@ viewGl ( size, theta, texture ) =
         , height size.h
         , style "display" "block"
         ]
-        (texture
-            |> Maybe.map (scene (perspective theta))
-            |> Maybe.withDefault []
-        )
+        (scene (perspective bearing) location tiles)
 
 
 perspective : Float -> Mat4
@@ -184,37 +282,45 @@ perspective angle =
         ]
 
 
-scene : Mat4 -> Texture -> List Entity
-scene camera texture =
-    [ WebGL.entity
+scene : Mat4 -> Location -> Tiles -> List Entity
+scene camera location tiles =
+    let
+        filtered =
+            tiles |> Dict.values |> List.filterMap isLoaded
+
+        center =
+            locationToXyz location
+    in
+    List.map (makeTileEntity camera center) filtered
+
+
+isLoaded : Tile -> Maybe { x : Int, y : Int, texture : Texture }
+isLoaded tile =
+    case tile.texture of
+        Loaded texture ->
+            Just { x = tile.x, y = tile.y, texture = texture }
+
+        _ ->
+            Nothing
+
+
+makeTileEntity :
+    Mat4
+    -> ( Int, Int, Int )
+    -> { x : Int, y : Int, texture : Texture }
+    -> Entity
+makeTileEntity camera center tile =
+    let
+        ( cx, cy, cz ) =
+            center
+    in
+    WebGL.entity
         tileVertex
         tileFragment
-        (tileMesh ( -1, 0 ))
-        { texture = texture
+        (tileMesh ( tile.x - cx, tile.y - cy ))
+        { texture = tile.texture
         , perspective = camera
         }
-    , WebGL.entity
-        tileVertex
-        tileFragment
-        (tileMesh ( 0, -1 ))
-        { texture = texture
-        , perspective = camera
-        }
-    , WebGL.entity
-        tileVertex
-        tileFragment
-        (tileMesh ( 0, 0 ))
-        { texture = texture
-        , perspective = camera
-        }
-    , WebGL.entity
-        tileVertex
-        tileFragment
-        (tileMesh ( -1, -1 ))
-        { texture = texture
-        , perspective = camera
-        }
-    ]
 
 
 
