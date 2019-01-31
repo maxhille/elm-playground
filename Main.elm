@@ -131,7 +131,7 @@ makeXyzs : Location -> List ( Int, Int, Int )
 makeXyzs location =
     let
         dist =
-            5
+            20
 
         ( x, y, z ) =
             locationToXyz location
@@ -317,9 +317,11 @@ makeTileEntity camera center tile =
     WebGL.entity
         tileVertex
         tileFragment
-        (tileMesh ( tile.x - cx, tile.y - cy ))
+        tileMesh
         { texture = tile.texture
         , perspective = camera
+        , tileX = toFloat (tile.x - cx)
+        , tileZ = toFloat (tile.y - cy)
         }
 
 
@@ -330,31 +332,29 @@ makeTileEntity camera center tile =
 type alias Vertex =
     { position : Vec3
     , coord : Vec2
-    , tileX : Float
-    , tileZ : Float
     }
 
 
-tileMesh : ( Int, Int ) -> Mesh Vertex
-tileMesh ( x, z ) =
-    square ( x, z )
+tileMesh : Mesh Vertex
+tileMesh =
+    square
         |> WebGL.triangles
 
 
-square : ( Int, Int ) -> List ( Vertex, Vertex, Vertex )
-square ( x, z ) =
+square : List ( Vertex, Vertex, Vertex )
+square =
     let
         nw =
-            { position = vec3 0 0 0, coord = vec2 0 1, tileX = toFloat x, tileZ = toFloat z }
+            { position = vec3 0 0 0, coord = vec2 0 1 }
 
         ne =
-            { position = vec3 1 0 0, coord = vec2 1 1, tileX = toFloat x, tileZ = toFloat z }
+            { position = vec3 1 0 0, coord = vec2 1 1 }
 
         sw =
-            { position = vec3 0 0 1, coord = vec2 0 0, tileX = toFloat x, tileZ = toFloat z }
+            { position = vec3 0 0 1, coord = vec2 0 0 }
 
         se =
-            { position = vec3 1 0 1, coord = vec2 1 0, tileX = toFloat x, tileZ = toFloat z }
+            { position = vec3 1 0 1, coord = vec2 1 0 }
     in
     [ ( nw, ne, sw )
     , ( sw, ne, se )
@@ -368,6 +368,8 @@ square ( x, z ) =
 type alias Uniforms =
     { perspective : Mat4
     , texture : Texture
+    , tileX : Float
+    , tileZ : Float
     }
 
 
@@ -377,8 +379,8 @@ tileVertex =
 
         attribute vec3 position;
         attribute vec2 coord;
-        attribute float tileX;
-        attribute float tileZ;
+        uniform float tileX;
+        uniform float tileZ;
         uniform mat4 perspective;
         varying vec2 vcoord;
 
