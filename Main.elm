@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Browser
 import Browser.Dom exposing (Viewport, getViewport)
@@ -6,6 +6,7 @@ import Browser.Events exposing (onAnimationFrameDelta, onResize)
 import Dict exposing (Dict)
 import Html exposing (Html, text)
 import Html.Attributes exposing (height, style, width)
+import Http
 import Json.Decode exposing (Value)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 as Vec2 exposing (Vec2, vec2)
@@ -48,6 +49,7 @@ type Msg
     | UpdateLocation Location
     | ResizeWindow Int Int
     | Animate Float
+    | GotText (Result Http.Error String)
 
 
 type TextureState
@@ -62,6 +64,9 @@ type alias Tile =
     , y : Int
     , z : Int
     }
+
+
+port parseMbv : String -> Cmd msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -110,6 +115,14 @@ update action model =
             , loadTiles idleTiles
             )
 
+        GotText result ->
+            case result of
+                Err _ ->
+                    ( model, Cmd.none )
+
+                Ok text ->
+                    ( model, parseMbv text )
+
 
 updateTile : Tiles -> Tile -> Tiles
 updateTile tiles tile =
@@ -131,7 +144,7 @@ makeXyzs : Location -> List ( Int, Int, Int )
 makeXyzs location =
     let
         dist =
-            20
+            1
 
         ( x, y, z ) =
             locationToXyz location
@@ -151,7 +164,7 @@ locationToXyz : Location -> ( Int, Int, Int )
 locationToXyz location =
     let
         zoom =
-            18
+            14
 
         lat_rad =
             degrees location.lat
@@ -180,9 +193,10 @@ loadTiles tiles =
 
 loadTile : Tile -> Cmd Msg
 loadTile tile =
-    tileUrl tile
-        |> Texture.load
-        |> Task.attempt (TextureLoaded ( tile.x, tile.y, tile.z ))
+    Http.get
+        { url = tileUrl tile
+        , expect = Http.expectString GotText
+        }
 
 
 emptyTiles : Tiles
@@ -223,13 +237,13 @@ main =
 
 tileUrl : Tile -> String
 tileUrl tile =
-    "https://stamen-tiles.a.ssl.fastly.net/watercolor/"
+    "http://localhost:8000/tiles/"
         ++ String.fromInt tile.z
         ++ "/"
         ++ String.fromInt tile.x
         ++ "/"
         ++ String.fromInt tile.y
-        ++ ".jpg"
+        ++ ".pbf"
 
 
 subscriptions : Model -> Sub Msg

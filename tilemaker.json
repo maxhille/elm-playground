@@ -1,0 +1,19 @@
+{
+	"layers": {
+		"roads": { "minzoom": 14, "maxzoom": 14 },
+		"building": { "minzoom": 14, "maxzoom": 14 },
+		"transportation": { "minzoom": 14, "maxzoom": 14 },
+		"waterway": { "minzoom": 14, "maxzoom": 14 },
+		"poi": { "minzoom": 15, "maxzoom": 15 }
+	},
+	"settings": {
+		"minzoom": 14,
+		"maxzoom": 14,
+		"basezoom": 14,
+		"include_ids": false,
+		"compress": "none",
+		"name": "Tilemaker example",
+		"version": "0.1",
+		"description": "Sample vector tiles for Tilemaker"
+	}
+}

@@ -1,2 +1,4 @@
-elm-stuff
-index.html
+/elm-stuff/
+/node_modules/
+/build/
+/tiles/
