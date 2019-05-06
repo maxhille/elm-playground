@@ -50,6 +50,7 @@ type Msg
     | ResizeWindow Int Int
     | Animate Float
     | GotText (Result Http.Error String)
+    | GotBytes (Result Http.Error (List Int))
 
 
 type TextureState
@@ -195,8 +196,11 @@ loadTile : Tile -> Cmd Msg
 loadTile tile =
     Http.get
         { url = tileUrl tile
-        , expect = Http.expectString GotText
+        , expect = Http.expectBytes GotBytes bytesDecoder
         }
+
+
+bytesDecoder : Bytes.Decoder List Int
 
 
 emptyTiles : Tiles
