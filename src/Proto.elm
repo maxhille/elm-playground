@@ -18,26 +18,44 @@ varint =
     unsignedInt8
         |> andThen
             (\x ->
-                if isFollowed x then
-                    map (\y -> x - 0x80 + Bitwise.shiftLeftBy 7 y) unsignedInt8
+                loop
+                    { last = x
+                    , sum =
+                        if hasMsb x then
+                            x - 0x80
 
-                else
-                    succeed x
+                        else
+                            x
+                    , shift = 7
+                    }
+                    varintStep
             )
 
 
 type alias VarintState =
-    { isFollowed : Bool
+    { last : Int
     , sum : Int
+    , shift : Int
     }
 
 
+varintStep : VarintState -> Decoder (Step VarintState Int)
+varintStep state =
+    if hasMsb state.last then
+        map
+            (\x ->
+                Loop
+                    { last = x
+                    , sum = state.sum + Bitwise.shiftLeftBy state.shift (Bitwise.and 0x7F x)
+                    , shift = state.shift + 7
+                    }
+            )
+            unsignedInt8
 
--- varintStep : VarintState -> Decoder (Step VarintState) Int
--- varintStep state =
---       if state.isFollowed then
+    else
+        succeed (Done state.sum)
 
 
-isFollowed : Int -> Bool
-isFollowed n =
+hasMsb : Int -> Bool
+hasMsb n =
     Bitwise.and n 0x80 == 0x80
