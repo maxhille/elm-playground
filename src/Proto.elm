@@ -1,16 +1,9 @@
-module Proto exposing (parseVarint)
+module Proto exposing (varint)
 
 import Bitwise
 import Bytes exposing (Bytes, Endianness(..))
 import Bytes.Decode exposing (..)
 import Maybe
-
-
-parseVarint : Bytes -> Int
-parseVarint bytes =
-    bytes
-        |> decode varint
-        |> Maybe.withDefault 0
 
 
 varint : Decoder Int

@@ -10,35 +10,45 @@ import Task
 
 
 type alias Model =
-    {}
+    { x : Int }
 
 
 type Msg
-    = GotBytes (Result Http.Error String)
+    = GotTile (Result Http.Error Tile)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( model, Cmd.none )
+    case msg of
+        GotTile result ->
+            case result of
+                Ok tile ->
+                    ( { model | x = tile.x }, Cmd.none )
+
+                Err error ->
+                    ( model, Cmd.none )
 
 
 loadTile : Cmd Msg
 loadTile =
     Http.get
         { url = "http://localhost:8000/tiles/14/8645/5293.pbf"
-        , expect = Http.expectBytes GotBytes bytesDecoder
+        , expect = Http.expectBytes GotTile tileDecoder
         }
 
 
-bytesDecoder : Decoder String
-bytesDecoder =
-    Decode.unsignedInt32 BE
-        |> Decode.andThen Decode.string
+tileDecoder : Decoder Tile
+tileDecoder =
+    Decode.map (\x -> { x = x }) Decode.unsignedInt8
+
+
+type alias Tile =
+    { x : Int }
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( {}, loadTile )
+    ( { x = 0 }, loadTile )
 
 
 main : Program () Model Msg
@@ -54,5 +64,5 @@ main =
 view : Model -> Browser.Document Msg
 view model =
     { title = "hello, title!"
-    , body = [ text "Hello World" ]
+    , body = [ text ("Hello " ++ String.fromInt model.x) ]
     }

@@ -6,10 +6,10 @@ all: $(elm) $(js)
 clean:
 	rm -rf build
 
-$(js): $(elm) mbv.js webpack.config.js
+$(js): $(elm) webpack.config.js
 	mkdir -p build
 	node_modules/.bin/webpack
 
-$(elm): Main.elm 
+$(elm): src/Vector.elm 
 	mkdir -p build
-	elm make Main.elm --output build/elm.js
+	elm make src/Vector.elm --output build/elm.js

@@ -1,5 +1,6 @@
 module Tests exposing (suite)
 
+import Bytes.Decode as Decode
 import Bytes.Encode exposing (..)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, list, string)
@@ -21,7 +22,7 @@ suite =
                                 ]
                                 |> encode
                     in
-                    Expect.equal 1 (Proto.parseVarint bytes)
+                    Expect.equal (Just 1) (Decode.decode Proto.varint bytes)
             , test "parses 300" <|
                 -- example from https://developers.google.com/protocol-buffers/docs/encoding
                 \_ ->
@@ -33,7 +34,7 @@ suite =
                                 ]
                                 |> encode
                     in
-                    Expect.equal 300 (Proto.parseVarint bytes)
+                    Expect.equal (Just 300) (Decode.decode Proto.varint bytes)
             , test "parses 4735388" <|
                 -- created with https://www.wilgysef.com/blog/varint-converter/
                 \_ ->
@@ -47,6 +48,30 @@ suite =
                                 ]
                                 |> encode
                     in
-                    Expect.equal 4735388 (Proto.parseVarint bytes)
+                    Expect.equal (Just 4735388) (Decode.decode Proto.varint bytes)
+            , test "parses 86" <|
+                -- created with https://www.wilgysef.com/blog/varint-converter/
+                \_ ->
+                    let
+                        bytes =
+                            sequence
+                                [ unsignedInt8 0x56
+                                ]
+                                |> encode
+                    in
+                    Expect.equal (Just 86) (Decode.decode Proto.varint bytes)
+            , test "parses 3414" <|
+                -- created with https://www.wilgysef.com/blog/varint-converter/
+                \_ ->
+                    let
+                        bytes =
+                            sequence
+                                [ unsignedInt8 0xD6
+                                , unsignedInt8 0x1A
+                                , unsignedInt8 0x04
+                                ]
+                                |> encode
+                    in
+                    Expect.equal (Just 3414) (Decode.decode Proto.varint bytes)
             ]
         ]
