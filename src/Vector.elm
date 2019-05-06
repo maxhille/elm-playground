@@ -1,5 +1,6 @@
 module Vector exposing (main)
 
+import Bitwise
 import Browser
 import Bytes exposing (Endianness(..))
 import Bytes.Decode as Decode exposing (Decoder)
@@ -10,7 +11,7 @@ import Task
 
 
 type alias Model =
-    { x : Int }
+    { tile : Maybe Tile }
 
 
 type Msg
@@ -23,7 +24,7 @@ update msg model =
         GotTile result ->
             case result of
                 Ok tile ->
-                    ( { model | x = tile.x }, Cmd.none )
+                    ( { model | tile = Just tile }, Cmd.none )
 
                 Err error ->
                     ( model, Cmd.none )
@@ -39,16 +40,18 @@ loadTile =
 
 tileDecoder : Decoder Tile
 tileDecoder =
-    Decode.map (\x -> { x = x }) Decode.unsignedInt8
+    Decode.map (\x -> { field = Bitwise.shiftRightBy 3 x, wtype = Bitwise.and 0x07 x }) Proto.varint
 
 
 type alias Tile =
-    { x : Int }
+    { field : Int
+    , wtype : Int
+    }
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { x = 0 }, loadTile )
+    ( { tile = Nothing }, loadTile )
 
 
 main : Program () Model Msg
@@ -64,5 +67,14 @@ main =
 view : Model -> Browser.Document Msg
 view model =
     { title = "hello, title!"
-    , body = [ text ("Hello " ++ String.fromInt model.x) ]
+    , body =
+        [ text
+            (case model.tile of
+                Just tile ->
+                    "field: " ++ String.fromInt tile.field ++ "  type: " ++ String.fromInt tile.wtype
+
+                Nothing ->
+                    "no tile :-/"
+            )
+        ]
     }
