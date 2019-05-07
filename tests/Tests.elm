@@ -11,7 +11,7 @@ import Test exposing (..)
 suite : Test
 suite =
     describe "The Proto module"
-        [ describe "parseVarint"
+        [ describe "varint"
             [ test "parses 1" <|
                 -- example from https://developers.google.com/protocol-buffers/docs/encoding
                 \_ ->
@@ -73,5 +73,18 @@ suite =
                                 |> encode
                     in
                     Expect.equal (Just 3414) (Decode.decode Proto.varint bytes)
+            ]
+        , describe "field"
+            [ test "parses field 1 with type varint" <|
+                -- example from https://developers.google.com/protocol-buffers/docs/encoding
+                \_ ->
+                    let
+                        bytes =
+                            sequence
+                                [ unsignedInt8 0x08
+                                ]
+                                |> encode
+                    in
+                    Expect.equal (Just ( 1, Proto.Varint )) (Decode.decode Proto.field bytes)
             ]
         ]

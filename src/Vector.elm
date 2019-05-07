@@ -63,8 +63,16 @@ tileDecoder =
 
 tilesStep : DecoderState -> Decoder (Decode.Step DecoderState Tile)
 tilesStep state =
-    -- Decode.map (\x -> { field = Bitwise.shiftRightBy 3 x, wtype = Bitwise.and 0x07 x }) Proto.varint
-    Decode.map (\x -> Decode.Loop { state | layers = { name = "I'm a Layer!" } :: state.layers }) Proto.varint
+    Decode.map
+        (\x ->
+            case x of
+                Just n ->
+                    Decode.Loop { state | layers = { name = "I'm a Layer!" } :: state.layers }
+
+                Nothing ->
+                    Decode.Done state
+        )
+        Proto.field
 
 
 type alias DecoderState =

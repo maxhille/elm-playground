@@ -1,4 +1,4 @@
-module Proto exposing (varint)
+module Proto exposing (WType(..), field, varint)
 
 import Bitwise
 import Bytes exposing (Bytes, Endianness(..))
@@ -52,3 +52,39 @@ varintStep state =
 hasMsb : Int -> Bool
 hasMsb n =
     Bitwise.and n 0x80 == 0x80
+
+
+type alias Field =
+    ( Int, WType )
+
+
+type WType
+    = Varint
+    | Bit64
+    | Delim
+    | Bit32
+    | Unsupported
+
+
+wtype : Int -> WType
+wtype x =
+    case x of
+        0 ->
+            Varint
+
+        1 ->
+            Bit64
+
+        2 ->
+            Delim
+
+        5 ->
+            Bit32
+
+        _ ->
+            Unsupported
+
+
+field : Decoder Field
+field =
+    map (\x -> ( Bitwise.shiftRightBy 3 x, wtype <| Bitwise.and 0x07 x )) varint
