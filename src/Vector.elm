@@ -106,20 +106,33 @@ tileDecoder len =
 
 tilesStep : DecoderState -> Decoder (Decode.Step DecoderState Tile)
 tilesStep state =
-    case state.next of
-        Value wtype ->
-            Decode.map (\( len, _ ) -> Decode.Loop { state | next = Field }) (Proto.skip wtype)
+    if state.len == 0 then
+        Decode.succeed (Decode.Done { fields = state.fields })
 
-        Field ->
-            Decode.map
-                (\( len, field, wtype ) ->
-                    Decode.Loop
-                        { state
-                            | next = Value wtype
-                            , len = state.len - len
-                        }
-                )
-                Proto.field
+    else
+        case state.next of
+            Value wtype ->
+                Decode.map
+                    (\( len, _ ) ->
+                        Decode.Loop
+                            { state
+                                | next = Field
+                                , len = state.len - len
+                            }
+                    )
+                    (Proto.skip wtype)
+
+            Field ->
+                Decode.map
+                    (\( len, field, wtype ) ->
+                        Decode.Loop
+                            { state
+                                | next = Value wtype
+                                , len = state.len - len
+                                , fields = state.fields + 1
+                            }
+                    )
+                    Proto.field
 
 
 type alias DecoderState =
@@ -135,7 +148,7 @@ type NextToken
 
 
 type alias Tile =
-    { layers : List Layer
+    { fields : Int
     }
 
 
@@ -165,7 +178,7 @@ view model =
         [ text
             (case model.tile of
                 Loaded tile ->
-                    "layers: " ++ String.fromInt (List.length tile.layers)
+                    "layers: " ++ String.fromInt tile.fields
 
                 Error str ->
                     "error: " ++ str
