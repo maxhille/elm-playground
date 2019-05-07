@@ -6,6 +6,12 @@ all: $(elm) $(js)
 clean:
 	rm -rf build
 
+watch:
+	while true; do \
+		make all; \
+		inotifywait -qre close_write .; \
+	done
+
 $(js): $(elm) webpack.config.js
 	mkdir -p build
 	node_modules/.bin/webpack

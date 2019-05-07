@@ -11,7 +11,13 @@ import Task
 
 
 type alias Model =
-    { tile : Maybe Tile }
+    { tile : Data Tile }
+
+
+type Data a
+    = Loaded a
+    | Idle
+    | Error String
 
 
 type Msg
@@ -24,10 +30,22 @@ update msg model =
         GotTile result ->
             case result of
                 Ok tile ->
-                    ( { model | tile = Just tile }, Cmd.none )
+                    ( { model | tile = Loaded tile }, Cmd.none )
 
                 Err error ->
-                    ( model, Cmd.none )
+                    ( { model
+                        | tile =
+                            Error
+                                (case error of
+                                    Http.BadBody str ->
+                                        "bad body: " ++ str
+
+                                    _ ->
+                                        "general error"
+                                )
+                      }
+                    , Cmd.none
+                    )
 
 
 loadTile : Cmd Msg
@@ -40,18 +58,31 @@ loadTile =
 
 tileDecoder : Decoder Tile
 tileDecoder =
-    Decode.map (\x -> { field = Bitwise.shiftRightBy 3 x, wtype = Bitwise.and 0x07 x }) Proto.varint
+    Decode.loop { layers = [] } tilesStep
+
+
+tilesStep : DecoderState -> Decoder (Decode.Step DecoderState Tile)
+tilesStep state =
+    -- Decode.map (\x -> { field = Bitwise.shiftRightBy 3 x, wtype = Bitwise.and 0x07 x }) Proto.varint
+    Decode.map (\x -> Decode.Loop { state | layers = { name = "I'm a Layer!" } :: state.layers }) Proto.varint
+
+
+type alias DecoderState =
+    { layers : List Layer }
 
 
 type alias Tile =
-    { field : Int
-    , wtype : Int
+    { layers : List Layer
     }
+
+
+type alias Layer =
+    { name : String }
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { tile = Nothing }, loadTile )
+    ( { tile = Idle }, loadTile )
 
 
 main : Program () Model Msg
@@ -70,11 +101,14 @@ view model =
     , body =
         [ text
             (case model.tile of
-                Just tile ->
-                    "field: " ++ String.fromInt tile.field ++ "  type: " ++ String.fromInt tile.wtype
+                Loaded tile ->
+                    "layers: " ++ String.fromInt (List.length tile.layers)
 
-                Nothing ->
-                    "no tile :-/"
+                Error str ->
+                    "error: " ++ str
+
+                Idle ->
+                    "idle"
             )
         ]
     }
