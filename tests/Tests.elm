@@ -22,7 +22,7 @@ suite =
                                 ]
                                 |> encode
                     in
-                    Expect.equal (Just 1) (Decode.decode Proto.varint bytes)
+                    Expect.equal (Just ( 1, 1 )) (Decode.decode Proto.varint bytes)
             , test "parses 300" <|
                 -- example from https://developers.google.com/protocol-buffers/docs/encoding
                 \_ ->
@@ -34,7 +34,7 @@ suite =
                                 ]
                                 |> encode
                     in
-                    Expect.equal (Just 300) (Decode.decode Proto.varint bytes)
+                    Expect.equal (Just ( 2, 300 )) (Decode.decode Proto.varint bytes)
             , test "parses 4735388" <|
                 -- created with https://www.wilgysef.com/blog/varint-converter/
                 \_ ->
@@ -48,7 +48,7 @@ suite =
                                 ]
                                 |> encode
                     in
-                    Expect.equal (Just 4735388) (Decode.decode Proto.varint bytes)
+                    Expect.equal (Just ( 4, 4735388 )) (Decode.decode Proto.varint bytes)
             , test "parses 86" <|
                 -- created with https://www.wilgysef.com/blog/varint-converter/
                 \_ ->
@@ -59,7 +59,7 @@ suite =
                                 ]
                                 |> encode
                     in
-                    Expect.equal (Just 86) (Decode.decode Proto.varint bytes)
+                    Expect.equal (Just ( 1, 86 )) (Decode.decode Proto.varint bytes)
             , test "parses 3414" <|
                 -- created with https://www.wilgysef.com/blog/varint-converter/
                 \_ ->
@@ -68,11 +68,10 @@ suite =
                             sequence
                                 [ unsignedInt8 0xD6
                                 , unsignedInt8 0x1A
-                                , unsignedInt8 0x04
                                 ]
                                 |> encode
                     in
-                    Expect.equal (Just 3414) (Decode.decode Proto.varint bytes)
+                    Expect.equal (Just ( 2, 3414 )) (Decode.decode Proto.varint bytes)
             ]
         , describe "field"
             [ test "parses field 1 with type varint" <|

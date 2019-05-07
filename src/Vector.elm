@@ -4,6 +4,7 @@ import Bitwise
 import Browser
 import Bytes exposing (Endianness(..))
 import Bytes.Decode as Decode exposing (Decoder)
+import Dict
 import Html exposing (Html, text)
 import Http
 import Proto
@@ -52,31 +53,85 @@ loadTile : Cmd Msg
 loadTile =
     Http.get
         { url = "http://localhost:8000/tiles/14/8645/5293.pbf"
-        , expect = Http.expectBytes GotTile tileDecoder
+        , expect = expectProto GotTile
         }
 
 
-tileDecoder : Decoder Tile
-tileDecoder =
-    Decode.loop { layers = [] } tilesStep
+expectProto : (Result Http.Error Tile -> msg) -> Http.Expect msg
+expectProto toMsg =
+    Http.expectBytesResponse toMsg <|
+        resolve <|
+            \bytes len ->
+                Result.fromMaybe "unexpected bytes"
+                    (Decode.decode (tileDecoder len) bytes)
+
+
+resolve :
+    (body -> Int -> Result String Tile)
+    -> Http.Response body
+    -> Result Http.Error Tile
+resolve toResult response =
+    case response of
+        Http.BadUrl_ url ->
+            Err (Http.BadUrl url)
+
+        Http.Timeout_ ->
+            Err Http.Timeout
+
+        Http.NetworkError_ ->
+            Err Http.NetworkError
+
+        Http.BadStatus_ metadata _ ->
+            Err (Http.BadStatus metadata.statusCode)
+
+        Http.GoodStatus_ metadata body ->
+            let
+                contentLength =
+                    Dict.get "content-length" metadata.headers
+                        |> Maybe.andThen String.toInt
+            in
+            case contentLength of
+                Just len ->
+                    Result.mapError Http.BadBody (toResult body len)
+
+                Nothing ->
+                    -- TODO custom errors
+                    Err Http.NetworkError
+
+
+tileDecoder : Int -> Decoder Tile
+tileDecoder len =
+    Decode.loop { len = len, fields = 0, next = Field } tilesStep
 
 
 tilesStep : DecoderState -> Decoder (Decode.Step DecoderState Tile)
 tilesStep state =
-    Decode.map
-        (\x ->
-            case x of
-                Just n ->
-                    Decode.Loop { state | layers = { name = "I'm a Layer!" } :: state.layers }
+    case state.next of
+        Value wtype ->
+            Decode.map (\( len, _ ) -> Decode.Loop { state | next = Field }) (Proto.skip wtype)
 
-                Nothing ->
-                    Decode.Done state
-        )
-        Proto.field
+        Field ->
+            Decode.map
+                (\( len, field, wtype ) ->
+                    Decode.Loop
+                        { state
+                            | next = Value wtype
+                            , len = state.len - len
+                        }
+                )
+                Proto.field
 
 
 type alias DecoderState =
-    { layers : List Layer }
+    { fields : Int
+    , len : Int
+    , next : NextToken
+    }
+
+
+type NextToken
+    = Field
+    | Value Proto.WType
 
 
 type alias Tile =
