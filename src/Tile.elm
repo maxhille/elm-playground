@@ -30,16 +30,68 @@ tileStep state =
         Proto.decodeKey
             |> Decode.andThen
                 (\( klen, k, wtype ) ->
-                    Decode.map
-                        (\( vlen, _ ) ->
-                            Decode.Loop
-                                { state
-                                    | len = state.len - klen - vlen
-                                    , layers = { name = "layerN" } :: state.layers
-                                }
-                        )
-                        (Proto.skip wtype)
+                    case k of
+                        3 ->
+                            Decode.map
+                                (\( vlen, layer ) ->
+                                    Decode.Loop
+                                        { state
+                                            | len = state.len - klen - vlen
+                                            , layers = layer :: state.layers
+                                        }
+                                )
+                                (Proto.varint
+                                    |> Decode.andThen
+                                        (\( len, x ) ->
+                                            Decode.map (\layer -> ( len + x, layer )) (Decode.loop { len = x, name = "" } layerStep)
+                                        )
+                                )
+
+                        _ ->
+                            Decode.map
+                                (\( vlen, _ ) ->
+                                    Decode.Loop
+                                        { state | len = state.len - klen - vlen }
+                                )
+                                (Proto.decodeBytes wtype)
                 )
+
+
+layerStep : LayerDecoderState -> Decoder (Decode.Step LayerDecoderState Layer)
+layerStep state =
+    if state.len == 0 then
+        Decode.succeed (Decode.Done { name = state.name })
+
+    else
+        Proto.decodeKey
+            |> Decode.andThen
+                (\( klen, k, wtype ) ->
+                    case k of
+                        1 ->
+                            Decode.map
+                                (\( vlen, str ) ->
+                                    Decode.Loop
+                                        { state
+                                            | len = state.len - klen - vlen
+                                            , name = str
+                                        }
+                                )
+                                Proto.decodeString
+
+                        _ ->
+                            Decode.map
+                                (\( vlen, _ ) ->
+                                    Decode.Loop
+                                        { state | len = state.len - klen - vlen }
+                                )
+                                (Proto.decodeBytes wtype)
+                )
+
+
+type alias LayerDecoderState =
+    { name : String
+    , len : Int
+    }
 
 
 type alias TileDecoderState =

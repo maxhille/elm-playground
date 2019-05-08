@@ -86,4 +86,24 @@ suite =
                     in
                     Expect.equal (Just ( 1, 1, Proto.Varint )) (Decode.decode Proto.decodeKey bytes)
             ]
+        , describe "decodeString"
+            [ test "decodes string" <|
+                -- example from https://developers.google.com/protocol-buffers/docs/encoding
+                \_ ->
+                    let
+                        bytes =
+                            sequence
+                                [ unsignedInt8 0x07
+                                , unsignedInt8 0x74
+                                , unsignedInt8 0x65
+                                , unsignedInt8 0x73
+                                , unsignedInt8 0x74
+                                , unsignedInt8 0x69
+                                , unsignedInt8 0x6E
+                                , unsignedInt8 0x67
+                                ]
+                                |> encode
+                    in
+                    Expect.equal (Just ( 8, "testing" )) (Decode.decode Proto.decodeString bytes)
+            ]
         ]

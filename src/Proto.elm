@@ -1,4 +1,4 @@
-module Proto exposing (Field, WType(..), decodeKey, skip, varint)
+module Proto exposing (Field, WType(..), decodeBytes, decodeKey, decodeString, varint)
 
 import Bitwise
 import Bytes exposing (Bytes, Endianness(..))
@@ -93,8 +93,13 @@ decodeKey =
     map (\( len, x ) -> ( len, Bitwise.shiftRightBy 3 x, wtype <| Bitwise.and 0x07 x )) varint
 
 
-skip : WType -> Decoder ( Int, Int )
-skip wt =
+decodeString : Decoder ( Int, String )
+decodeString =
+    varint |> andThen (\( len, x ) -> map (\s -> ( x + len, s )) (string x))
+
+
+decodeBytes : WType -> Decoder ( Int, Int )
+decodeBytes wt =
     case wt of
         Varint ->
             varint

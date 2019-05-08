@@ -7,8 +7,7 @@ clean:
 
 watch:
 	while true; do \
-		make all; \
-		elm-test; \
+		make all && elm-test; \
 		inotifywait -qre close_write .; \
 	done
 
