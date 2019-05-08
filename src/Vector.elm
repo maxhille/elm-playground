@@ -118,7 +118,7 @@ view model =
         [ text
             (case model.tile of
                 Loaded tile ->
-                    "layers: " ++ String.fromInt tile.fields
+                    "layers: " ++ String.fromInt (List.length tile.layers)
 
                 Error str ->
                     "error: " ++ str

@@ -18,17 +18,17 @@ decode len bs =
 
 decoder : Int -> Decoder Tile
 decoder len =
-    Decode.loop { len = len, fields = 0, next = Field } tilesStep
+    Decode.loop { len = len, layers = [], next = Field } tileStep
 
 
-tilesStep : DecoderState -> Decoder (Decode.Step DecoderState Tile)
-tilesStep state =
+tileStep : DecoderState -> Decoder (Decode.Step DecoderState Tile)
+tileStep state =
     if state.len == 0 then
-        Decode.succeed (Decode.Done { fields = state.fields })
+        Decode.succeed (Decode.Done { layers = state.layers })
 
     else
         case state.next of
-            Value wtype ->
+            Value wtype field ->
                 Decode.map
                     (\( len, _ ) ->
                         Decode.Loop
@@ -44,16 +44,16 @@ tilesStep state =
                     (\( len, field, wtype ) ->
                         Decode.Loop
                             { state
-                                | next = Value wtype
+                                | next = Value wtype field
                                 , len = state.len - len
-                                , fields = state.fields + 1
+                                , layers = { name = "layer name" } :: state.layers
                             }
                     )
                     Proto.field
 
 
 type alias DecoderState =
-    { fields : Int
+    { layers : List Layer
     , len : Int
     , next : NextToken
     }
@@ -61,11 +61,11 @@ type alias DecoderState =
 
 type NextToken
     = Field
-    | Value Proto.WType
+    | Value Proto.WType Int
 
 
 type alias Tile =
-    { fields : Int
+    { layers : List Layer
     }
 
 
