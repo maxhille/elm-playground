@@ -1,4 +1,4 @@
-module Proto exposing (Field, WType(..), decodeBytes, decodeKey, decodeString, varint)
+module Proto exposing (Field, WType(..), decodeBytes, decodeKey, decodePackedUint32s, decodeString, varint)
 
 import Bitwise
 import Bytes exposing (Bytes, Endianness(..))
@@ -96,6 +96,28 @@ decodeKey =
 decodeString : Decoder ( Int, String )
 decodeString =
     varint |> andThen (\( len, x ) -> map (\s -> ( x + len, s )) (string x))
+
+
+decodePackedUint32s : Decoder ( Int, List Int )
+decodePackedUint32s =
+    varint |> andThen (\( len, x ) -> map (\xs -> ( x + len, xs )) (loop { len = x, xs = [] } packedUint32sStep))
+
+
+packedUint32sStep : PackedUint32sState -> Decoder (Step PackedUint32sState (List Int))
+packedUint32sStep state =
+    if state.len == 0 then
+        succeed (Done state.xs)
+
+    else
+        map
+            (\( len, x ) -> Loop { xs = x :: state.xs, len = state.len - len })
+            varint
+
+
+type alias PackedUint32sState =
+    { len : Int
+    , xs : List Int
+    }
 
 
 decodeBytes : WType -> Decoder ( Int, Int )

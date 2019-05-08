@@ -43,7 +43,7 @@ tileStep state =
                                 (Proto.varint
                                     |> Decode.andThen
                                         (\( len, x ) ->
-                                            Decode.map (\layer -> ( len + x, layer )) (Decode.loop { len = x, name = "" } layerStep)
+                                            Decode.map (\layer -> ( len + x, layer )) (Decode.loop { len = x, name = "", geometry = [] } layerStep)
                                         )
                                 )
 
@@ -60,7 +60,7 @@ tileStep state =
 layerStep : LayerDecoderState -> Decoder (Decode.Step LayerDecoderState Layer)
 layerStep state =
     if state.len == 0 then
-        Decode.succeed (Decode.Done { name = state.name })
+        Decode.succeed (Decode.Done { name = state.name, geometry = state.geometry })
 
     else
         Proto.decodeKey
@@ -78,6 +78,17 @@ layerStep state =
                                 )
                                 Proto.decodeString
 
+                        4 ->
+                            Decode.map
+                                (\( vlen, xs ) ->
+                                    Decode.Loop
+                                        { state
+                                            | len = state.len - klen - vlen
+                                            , geometry = xs
+                                        }
+                                )
+                                Proto.decodePackedUint32s
+
                         _ ->
                             Decode.map
                                 (\( vlen, _ ) ->
@@ -90,6 +101,7 @@ layerStep state =
 
 type alias LayerDecoderState =
     { name : String
+    , geometry : List Int
     , len : Int
     }
 
@@ -111,4 +123,6 @@ type alias Tile =
 
 
 type alias Layer =
-    { name : String }
+    { name : String
+    , geometry : List Int
+    }

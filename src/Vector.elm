@@ -117,7 +117,7 @@ view model =
     , body =
         [ case model.tile of
             Loaded tile ->
-                List.map (\layer -> Html.li [] [ text layer.name ]) tile.layers
+                List.map (\layer -> Html.li [] [ text (layer.name ++ " " ++ String.fromInt (List.length layer.geometry)) ]) tile.layers
                     |> Html.ul []
 
             Error str ->
