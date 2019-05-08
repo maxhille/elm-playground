@@ -13,49 +13,38 @@ import Task
 
 decode : Int -> Bytes.Bytes -> Maybe Tile
 decode len bs =
-    Decode.decode (decoder len) bs
+    Decode.decode (tileDecoder len) bs
 
 
-decoder : Int -> Decoder Tile
-decoder len =
-    Decode.loop { len = len, layers = [], next = Field } tileStep
+tileDecoder : Int -> Decoder Tile
+tileDecoder len =
+    Decode.loop { len = len, layers = [] } tileStep
 
 
-tileStep : DecoderState -> Decoder (Decode.Step DecoderState Tile)
+tileStep : TileDecoderState -> Decoder (Decode.Step TileDecoderState Tile)
 tileStep state =
     if state.len == 0 then
         Decode.succeed (Decode.Done { layers = state.layers })
 
     else
-        case state.next of
-            Value wtype field ->
-                Decode.map
-                    (\( len, _ ) ->
-                        Decode.Loop
-                            { state
-                                | next = Field
-                                , len = state.len - len
-                            }
-                    )
-                    (Proto.skip wtype)
-
-            Field ->
-                Decode.map
-                    (\( len, field, wtype ) ->
-                        Decode.Loop
-                            { state
-                                | next = Value wtype field
-                                , len = state.len - len
-                                , layers = { name = "layer name" } :: state.layers
-                            }
-                    )
-                    Proto.field
+        Proto.decodeKey
+            |> Decode.andThen
+                (\( klen, k, wtype ) ->
+                    Decode.map
+                        (\( vlen, _ ) ->
+                            Decode.Loop
+                                { state
+                                    | len = state.len - klen - vlen
+                                    , layers = { name = "layerN" } :: state.layers
+                                }
+                        )
+                        (Proto.skip wtype)
+                )
 
 
-type alias DecoderState =
+type alias TileDecoderState =
     { layers : List Layer
     , len : Int
-    , next : NextToken
     }
 
 

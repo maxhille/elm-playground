@@ -84,6 +84,6 @@ suite =
                                 ]
                                 |> encode
                     in
-                    Expect.equal (Just ( 1, Proto.Varint )) (Decode.decode Proto.field bytes)
+                    Expect.equal (Just ( 1, 1, Proto.Varint )) (Decode.decode Proto.decodeKey bytes)
             ]
         ]

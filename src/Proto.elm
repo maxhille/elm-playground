@@ -1,4 +1,4 @@
-module Proto exposing (Field, WType(..), field, skip, varint)
+module Proto exposing (Field, WType(..), decodeKey, skip, varint)
 
 import Bitwise
 import Bytes exposing (Bytes, Endianness(..))
@@ -88,8 +88,8 @@ wtype x =
             Unsupported
 
 
-field : Decoder Field
-field =
+decodeKey : Decoder Field
+decodeKey =
     map (\( len, x ) -> ( len, Bitwise.shiftRightBy 3 x, wtype <| Bitwise.and 0x07 x )) varint
 
 
