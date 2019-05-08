@@ -115,16 +115,15 @@ view : Model -> Browser.Document Msg
 view model =
     { title = "hello, title!"
     , body =
-        [ text
-            (case model.tile of
-                Loaded tile ->
-                    "layers: " ++ String.fromInt (List.length tile.layers)
+        [ case model.tile of
+            Loaded tile ->
+                List.map (\layer -> Html.li [] [ text layer.name ]) tile.layers
+                    |> Html.ul []
 
-                Error str ->
-                    "error: " ++ str
+            Error str ->
+                text <| "error: " ++ str
 
-                Idle ->
-                    "idle"
-            )
+            Idle ->
+                text "idle"
         ]
     }
