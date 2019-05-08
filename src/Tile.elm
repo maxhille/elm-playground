@@ -1,4 +1,4 @@
-module Tile exposing (Tile, expectProto)
+module Tile exposing (Tile, decode)
 
 import Bitwise
 import Browser
@@ -11,46 +11,9 @@ import Proto
 import Task
 
 
-expectProto : (Result Http.Error Tile -> msg) -> Http.Expect msg
-expectProto toMsg =
-    Http.expectBytesResponse toMsg <|
-        resolve <|
-            \bytes len ->
-                Result.fromMaybe "unexpected bytes"
-                    (Decode.decode (decoder len) bytes)
-
-
-resolve :
-    (body -> Int -> Result String Tile)
-    -> Http.Response body
-    -> Result Http.Error Tile
-resolve toResult response =
-    case response of
-        Http.BadUrl_ url ->
-            Err (Http.BadUrl url)
-
-        Http.Timeout_ ->
-            Err Http.Timeout
-
-        Http.NetworkError_ ->
-            Err Http.NetworkError
-
-        Http.BadStatus_ metadata _ ->
-            Err (Http.BadStatus metadata.statusCode)
-
-        Http.GoodStatus_ metadata body ->
-            let
-                contentLength =
-                    Dict.get "content-length" metadata.headers
-                        |> Maybe.andThen String.toInt
-            in
-            case contentLength of
-                Just len ->
-                    Result.mapError Http.BadBody (toResult body len)
-
-                Nothing ->
-                    -- TODO custom errors
-                    Err Http.NetworkError
+decode : Int -> Bytes.Bytes -> Maybe Tile
+decode len bs =
+    Decode.decode (decoder len) bs
 
 
 decoder : Int -> Decoder Tile
