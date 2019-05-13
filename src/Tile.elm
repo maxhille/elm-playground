@@ -1,4 +1,4 @@
-module Tile exposing (Feature, GeomType(..), Layer, Tile, decode)
+module Tile exposing (Command(..), Feature, GeomType(..), Layer, Tile, decode)
 
 import Bitwise
 import Browser
@@ -54,53 +54,6 @@ tileStep state =
                                                 )
                                         )
                                 )
-
-                        _ ->
-                            Decode.map
-                                (\( vlen, _ ) ->
-                                    Decode.Loop
-                                        { state | len = state.len - klen - vlen }
-                                )
-                                (Proto.decodeBytes wtype)
-                )
-
-
-featureStep : FeatureDecoderState -> Decoder (Decode.Step FeatureDecoderState Feature)
-featureStep state =
-    if state.len == 0 then
-        Decode.succeed
-            (Decode.Done
-                { geometry = state.geometry
-                , geomType = state.geomType
-                }
-            )
-
-    else
-        Proto.decodeKey
-            |> Decode.andThen
-                (\( klen, k, wtype ) ->
-                    case k of
-                        4 ->
-                            Decode.map
-                                (\( vlen, xs ) ->
-                                    Decode.Loop
-                                        { state
-                                            | len = state.len - klen - vlen
-                                            , geometry = xs
-                                        }
-                                )
-                                Proto.decodePackedUint32s
-
-                        3 ->
-                            Decode.map
-                                (\( vlen, x ) ->
-                                    Decode.Loop
-                                        { state
-                                            | len = state.len - klen - vlen
-                                            , geomType = geomType x
-                                        }
-                                )
-                                Proto.varint
 
                         _ ->
                             Decode.map
@@ -172,6 +125,118 @@ layerStep state =
                 )
 
 
+featureStep : FeatureDecoderState -> Decoder (Decode.Step FeatureDecoderState Feature)
+featureStep state =
+    if state.len == 0 then
+        Decode.succeed
+            (Decode.Done
+                { geometry = state.geometry
+                , geomType = state.geomType
+                }
+            )
+
+    else
+        Proto.decodeKey
+            |> Decode.andThen
+                (\( klen, k, wtype ) ->
+                    case k of
+                        4 ->
+                            Decode.map
+                                (\( vlen, xs ) ->
+                                    Decode.Loop
+                                        { state
+                                            | len = state.len - klen - vlen
+                                            , geometry = xs
+                                        }
+                                )
+                                decodeGeometry
+
+                        3 ->
+                            Decode.map
+                                (\( vlen, x ) ->
+                                    Decode.Loop
+                                        { state
+                                            | len = state.len - klen - vlen
+                                            , geomType = geomType x
+                                        }
+                                )
+                                Proto.varint
+
+                        _ ->
+                            Decode.map
+                                (\( vlen, _ ) ->
+                                    Decode.Loop
+                                        { state | len = state.len - klen - vlen }
+                                )
+                                (Proto.decodeBytes wtype)
+                )
+
+
+decodeGeometry : Decoder ( Int, List Command )
+decodeGeometry =
+    Proto.varint
+        |> Decode.andThen
+            (\( len, x ) ->
+                Decode.map (\xs -> ( x + len, xs )) (Decode.loop ( x, [] ) geometryStep)
+            )
+
+
+geometryStep : GeometryDecoderState -> Decoder (Decode.Step GeometryDecoderState (List Command))
+geometryStep ( len, cs ) =
+    if len == 0 then
+        Decode.succeed (Decode.Done cs)
+
+    else
+        Proto.varint
+            |> Decode.andThen
+                (\( len2, x ) ->
+                    case Bitwise.and x 0x07 of
+                        1 ->
+                            let
+                                n =
+                                    Bitwise.shiftRightBy 3 x
+                            in
+                            Decode.map
+                                (\( len3, xs ) ->
+                                    Decode.Loop ( len - len2 - len3, List.append cs (List.map (\( y, z ) -> MoveTo y z) xs) )
+                                )
+                                (Decode.loop ( n, 0, [] ) repeatStep)
+
+                        2 ->
+                            let
+                                n =
+                                    Bitwise.shiftRightBy 3 x
+                            in
+                            Decode.map
+                                (\( len3, xs ) ->
+                                    Decode.Loop ( len - len2 - len3, List.append cs (List.map (\( y, z ) -> LineTo y z) xs) )
+                                )
+                                (Decode.loop ( n, 0, [] ) repeatStep)
+
+                        7 ->
+                            Decode.succeed <| Decode.Loop ( len - len2, List.append cs [ ClosePath ] )
+
+                        _ ->
+                            Decode.fail
+                )
+
+
+repeatStep :
+    ( Int, Int, List ( Int, Int ) )
+    -> Decoder (Decode.Step ( Int, Int, List ( Int, Int ) ) ( Int, List ( Int, Int ) ))
+repeatStep ( n, len, xs ) =
+    if n == 0 then
+        Decode.succeed (Decode.Done ( len, xs ))
+
+    else
+        Decode.map2
+            (\( len1, y ) ( len2, z ) ->
+                Decode.Loop ( n - 1, len + len2 + len1, List.append xs [ ( y, z ) ] )
+            )
+            Proto.varint
+            Proto.varint
+
+
 type alias LayerDecoderState =
     { name : String
     , features : List Feature
@@ -180,7 +245,7 @@ type alias LayerDecoderState =
 
 
 type alias FeatureDecoderState =
-    { geometry : List Int
+    { geometry : List Command
     , geomType : GeomType
     , len : Int
     }
@@ -190,6 +255,16 @@ type alias TileDecoderState =
     { layers : List Layer
     , len : Int
     }
+
+
+type alias GeometryDecoderState =
+    ( Int, List Command )
+
+
+type Command
+    = MoveTo Int Int
+    | LineTo Int Int
+    | ClosePath
 
 
 type NextToken
@@ -204,7 +279,7 @@ type alias Tile =
 
 type alias Feature =
     { geomType : GeomType
-    , geometry : List Int
+    , geometry : List Command
     }
 
 

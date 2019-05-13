@@ -155,5 +155,21 @@ viewFeature feature =
 
                 _ ->
                     "Unhandled"
-        , text (" gemetries: " ++ String.fromInt (List.length feature.geometry))
+        , Html.ul [] <| List.map viewCommand feature.geometry
+        ]
+
+
+viewCommand : Command -> Html Msg
+viewCommand cmd =
+    Html.li []
+        [ text <|
+            case cmd of
+                MoveTo x y ->
+                    "MoveTo"
+
+                LineTo x y ->
+                    "LineTo"
+
+                ClosePath ->
+                    "ClosePath"
         ]
