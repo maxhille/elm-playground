@@ -5,7 +5,7 @@ import Dict
 import Html exposing (Html, text)
 import Http
 import Task
-import Tile
+import Tile exposing (..)
 
 
 type alias Model =
@@ -117,8 +117,7 @@ view model =
     , body =
         [ case model.tile of
             Loaded tile ->
-                List.map (\layer -> Html.li [] [ text (layer.name ++ " " ++ String.fromInt (List.length layer.geometry)) ]) tile.layers
-                    |> Html.ul []
+                viewTile tile
 
             Error str ->
                 text <| "error: " ++ str
@@ -127,3 +126,34 @@ view model =
                 text "idle"
         ]
     }
+
+
+viewTile : Tile -> Html Msg
+viewTile tile =
+    Html.ul [] <|
+        List.map viewLayer tile.layers
+
+
+viewLayer : Layer -> Html Msg
+viewLayer layer =
+    Html.li []
+        [ text layer.name
+        , Html.ul [] <| List.map viewFeature layer.features
+        ]
+
+
+viewFeature : Feature -> Html Msg
+viewFeature feature =
+    Html.li []
+        [ text <|
+            case feature.geomType of
+                Polygon ->
+                    "Polygon"
+
+                LineString ->
+                    "LineString"
+
+                _ ->
+                    "Unhandled"
+        , text (" gemetries: " ++ String.fromInt (List.length feature.geometry))
+        ]
