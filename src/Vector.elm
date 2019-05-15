@@ -2,8 +2,10 @@ module Vector exposing (main)
 
 import Browser
 import Dict
-import Html exposing (Html, text)
+import Html exposing (Html)
 import Http
+import Svg exposing (..)
+import Svg.Attributes exposing (..)
 import Task
 import Tile exposing (..)
 
@@ -130,46 +132,84 @@ view model =
 
 viewTile : Tile -> Html Msg
 viewTile tile =
-    Html.ul [] <|
-        List.map viewLayer tile.layers
+    svg [ width "480", height "480", viewBox "0 0 4096 4096" ] <|
+        List.concat <|
+            List.map viewLayer tile.layers
 
 
-viewLayer : Layer -> Html Msg
+viewLayer : Layer -> List (Svg Msg)
 viewLayer layer =
-    Html.li []
-        [ text layer.name
-        , Html.ul [] <| List.map viewFeature layer.features
-        ]
+    let
+        color =
+            case layer.name of
+                "waterway" ->
+                    "blue"
 
+                "transportation" ->
+                    "grey"
 
-viewFeature : Feature -> Html Msg
-viewFeature feature =
-    Html.li []
-        [ text <|
-            case feature.geomType of
-                Polygon ->
-                    "Polygon"
-
-                LineString ->
-                    "LineString"
+                "building" ->
+                    "brown"
 
                 _ ->
-                    "Unhandled"
-        , Html.ul [] <| List.map viewCommand feature.geometry
-        ]
+                    "black"
+    in
+    List.map (viewFeature color) layer.features
+        |> List.concat
 
 
-viewCommand : Command -> Html Msg
-viewCommand cmd =
-    Html.li []
-        [ text <|
-            case cmd of
-                MoveTo x y ->
-                    "MoveTo " ++ String.fromInt x ++ " " ++ String.fromInt y
+viewFeature : String -> Feature -> List (Svg Msg)
+viewFeature color feature =
+    case feature.geomType of
+        Polygon ->
+            [ drawPoly color feature.geometry ]
 
-                LineTo x y ->
-                    "LineTo " ++ String.fromInt x ++ " " ++ String.fromInt y
+        LineString ->
+            [ drawLine color feature.geometry ]
 
-                ClosePath ->
-                    "ClosePath"
-        ]
+        _ ->
+            []
+
+
+drawPoly : String -> List Command -> Svg Msg
+drawPoly color cmds =
+    let
+        ps =
+            List.foldl
+                (\cmd ( ( x0, y0 ), s ) ->
+                    case cmd of
+                        MoveTo x y ->
+                            ( ( x0 + x, y0 + y ), s ++ " " ++ String.fromInt (x0 + x) ++ "," ++ String.fromInt (y0 + y) )
+
+                        LineTo x y ->
+                            ( ( x0 + x, y0 + y ), s ++ " " ++ String.fromInt (x0 + x) ++ "," ++ String.fromInt (y0 + y) )
+
+                        ClosePath ->
+                            ( ( x0, y0 ), s )
+                )
+                ( ( 0, 0 ), "" )
+                cmds
+    in
+    polygon [ strokeWidth "1", fill color, stroke "black", points (Tuple.second ps) ] []
+
+
+drawLine : String -> List Command -> Svg Msg
+drawLine color cmds =
+    let
+        ps =
+            List.foldl
+                (\cmd ( ( x0, y0 ), s ) ->
+                    case cmd of
+                        MoveTo x y ->
+                            ( ( x0 + x, y0 + y ), s ++ " " ++ String.fromInt (x0 + x) ++ "," ++ String.fromInt (y0 + y) )
+
+                        LineTo x y ->
+                            ( ( x0 + x, y0 + y ), s ++ " " ++ String.fromInt (x0 + x) ++ "," ++ String.fromInt (y0 + y) )
+
+                        ClosePath ->
+                            ( ( x0, y0 ), s )
+                )
+                ( ( 0, 0 ), "" )
+                cmds
+    in
+    polyline [ strokeWidth "10", fill "none", stroke color, points (Tuple.second ps) ] []
