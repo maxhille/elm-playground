@@ -165,10 +165,10 @@ viewCommand cmd =
         [ text <|
             case cmd of
                 MoveTo x y ->
-                    "MoveTo"
+                    "MoveTo " ++ String.fromInt x ++ " " ++ String.fromInt y
 
                 LineTo x y ->
-                    "LineTo"
+                    "LineTo " ++ String.fromInt x ++ " " ++ String.fromInt y
 
                 ClosePath ->
                     "ClosePath"

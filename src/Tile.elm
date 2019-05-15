@@ -233,8 +233,8 @@ repeatStep ( n, len, xs ) =
             (\( len1, y ) ( len2, z ) ->
                 Decode.Loop ( n - 1, len + len2 + len1, List.append xs [ ( y, z ) ] )
             )
-            Proto.varint
-            Proto.varint
+            Proto.sint32
+            Proto.sint32
 
 
 type alias LayerDecoderState =

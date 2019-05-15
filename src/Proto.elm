@@ -1,4 +1,4 @@
-module Proto exposing (Field, WType(..), decodeBytes, decodeKey, decodePackedUint32s, decodeString, varint)
+module Proto exposing (Field, WType(..), decodeBytes, decodeKey, decodePackedUint32s, decodeString, sint32, varint)
 
 import Bitwise
 import Bytes exposing (Bytes, Endianness(..))
@@ -24,6 +24,30 @@ varint =
                     }
                     varintStep
             )
+
+
+sint32 : Decoder ( Int, Int )
+sint32 =
+    map (\( len, n ) -> ( len, decodeSigned n )) varint
+
+
+decodeSigned : Int -> Int
+decodeSigned n =
+    let
+        abs =
+            Bitwise.shiftRightBy 1 n
+
+        neg =
+            Bitwise.and n 0x01 == 1
+
+        sign =
+            if neg then
+                -1
+
+            else
+                1
+    in
+    sign * abs
 
 
 type alias VarintState =

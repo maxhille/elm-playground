@@ -11,6 +11,6 @@ watch:
 		inotifywait -qre close_write .; \
 	done
 
-$(elm): src/Vector.elm src/Tile.elm
+$(elm): src/Vector.elm src/Tile.elm src/Proto.elm
 	mkdir -p build
 	elm make src/Vector.elm --output build/elm.js
