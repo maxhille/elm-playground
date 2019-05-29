@@ -174,6 +174,27 @@ viewFeature color feature =
 drawPoly : String -> List Command -> Svg Msg
 drawPoly color cmds =
     let
+        -- TODO: only using the first command for now
+        filteredCmds =
+            List.foldl
+                (\cmd ( filtered, term ) ->
+                    if term then
+                        ( filtered, True )
+
+                    else
+                        ( List.append filtered [ cmd ]
+                        , case cmd of
+                            ClosePath ->
+                                True
+
+                            _ ->
+                                False
+                        )
+                )
+                ( [], False )
+                cmds
+                |> Tuple.first
+
         ps =
             List.foldl
                 (\cmd ( ( x0, y0 ), s ) ->
@@ -188,7 +209,7 @@ drawPoly color cmds =
                             ( ( x0, y0 ), s )
                 )
                 ( ( 0, 0 ), "" )
-                cmds
+                filteredCmds
     in
     polygon [ strokeWidth "1", fill color, stroke "black", points (Tuple.second ps) ] []
 
