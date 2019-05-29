@@ -2,9 +2,7 @@
 	"layers": {
 		"roads": { "minzoom": 14, "maxzoom": 14 },
 		"building": { "minzoom": 14, "maxzoom": 14 },
-		"transportation": { "minzoom": 14, "maxzoom": 14 },
-		"waterway": { "minzoom": 14, "maxzoom": 14 },
-		"poi": { "minzoom": 15, "maxzoom": 15 }
+		"water": { "minzoom": 14, "maxzoom": 14 }
 	},
 	"settings": {
 		"minzoom": 14,

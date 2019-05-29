@@ -14,3 +14,10 @@ watch:
 $(elm): src/Vector.elm src/Tile.elm src/Proto.elm
 	mkdir -p build
 	elm make src/Vector.elm --output build/elm.js
+
+tiles: build/osm.pbf 
+	tilemaker --out=build/tiles/ --config=tilemaker.json build/osm.pbf
+
+build/osm.pbf:
+	wget -O build/osm.pbf https://download.geofabrik.de/europe/germany/hamburg-latest.osm.pbf
+

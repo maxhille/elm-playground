@@ -51,7 +51,7 @@ update msg model =
 loadTile : Cmd Msg
 loadTile =
     Http.get
-        { url = "http://localhost:8000/tiles/14/8645/5293.pbf"
+        { url = "http://localhost:8000/build/tiles/14/8647/5293.pbf"
         , expect = expectProto GotTile
         }
 
@@ -142,17 +142,17 @@ viewLayer layer =
     let
         color =
             case layer.name of
-                "waterway" ->
-                    "blue"
+                "water" ->
+                    "#3333aa22"
 
-                "transportation" ->
+                "roads" ->
                     "grey"
 
                 "building" ->
                     "brown"
 
                 _ ->
-                    "black"
+                    "red"
     in
     List.map (viewFeature color) layer.features
         |> List.concat
