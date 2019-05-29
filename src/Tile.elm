@@ -1,4 +1,4 @@
-module Tile exposing (Command(..), Feature, GeomType(..), Layer, Tile, decode)
+module Tile exposing (Feature(..), Layer, Tile, decode)
 
 import Bitwise
 import Browser
@@ -7,6 +7,9 @@ import Bytes.Decode as Decode exposing (Decoder)
 import Dict
 import Html exposing (Html, text)
 import Http
+import Point2d
+import Polygon2d exposing (Polygon2d)
+import Polyline2d exposing (Polyline2d)
 import Proto
 import Task
 
@@ -125,15 +128,52 @@ layerStep state =
                 )
 
 
+polygons : List Command -> List Polygon2d
+polygons cmds =
+    let
+        ( result, _, _ ) =
+            List.foldl
+                (\cmd ( polys, current, ( x, y ) ) ->
+                    case cmd of
+                        MoveTo dx dy ->
+                            ( polys, current, ( x + toFloat dx, y + toFloat dy ) )
+
+                        LineTo dx dy ->
+                            ( polys, List.append current [ Point2d.fromCoordinates ( x + toFloat dx, y + toFloat dy ) ], ( x + toFloat dx, y + toFloat dy ) )
+
+                        ClosePath ->
+                            ( current :: polys, [], ( x, y ) )
+                )
+                ( [], [], ( 0.0, 0.0 ) )
+                cmds
+    in
+    -- TODO: combine holes into polys
+    List.map Polygon2d.singleLoop result
+
+
+polyline : List Command -> Polyline2d
+polyline cmds =
+    Polyline2d.fromVertices []
+
+
+featureResult : FeatureDecoderState -> Feature
+featureResult state =
+    case state.geomType of
+        Polygon ->
+            Polygons (polygons state.geometry)
+
+        LineString ->
+            Polyline (polyline state.geometry)
+
+        _ ->
+            Other
+
+
 featureStep : FeatureDecoderState -> Decoder (Decode.Step FeatureDecoderState Feature)
 featureStep state =
     if state.len == 0 then
         Decode.succeed
-            (Decode.Done
-                { geometry = state.geometry
-                , geomType = state.geomType
-                }
-            )
+            (Decode.Done (featureResult state))
 
     else
         Proto.decodeKey
@@ -277,10 +317,10 @@ type alias Tile =
     }
 
 
-type alias Feature =
-    { geomType : GeomType
-    , geometry : List Command
-    }
+type Feature
+    = Polygons (List Polygon2d)
+    | Polyline Polyline2d
+    | Other
 
 
 type alias Layer =

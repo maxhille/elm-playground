@@ -4,6 +4,9 @@ import Browser
 import Dict
 import Html exposing (Html)
 import Http
+import Point2d exposing (Point2d)
+import Polygon2d exposing (Polygon2d)
+import Polyline2d exposing (Polyline2d)
 import Svg exposing (..)
 import Svg.Attributes exposing (..)
 import Task
@@ -160,77 +163,45 @@ viewLayer layer =
 
 viewFeature : String -> Feature -> List (Svg Msg)
 viewFeature color feature =
-    case feature.geomType of
-        Polygon ->
-            [ drawPoly color feature.geometry ]
+    case feature of
+        Polygons gons ->
+            List.map (\gon -> viewPolygon color gon) gons
 
-        LineString ->
-            [ drawLine color feature.geometry ]
+        Polyline line ->
+            [ viewPolyline color line ]
 
-        _ ->
+        Other ->
             []
 
 
-drawPoly : String -> List Command -> Svg Msg
-drawPoly color cmds =
+viewPolygon : String -> Polygon2d -> Svg Msg
+viewPolygon color gon =
     let
-        -- TODO: only using the first command for now
-        filteredCmds =
-            List.foldl
-                (\cmd ( filtered, term ) ->
-                    if term then
-                        ( filtered, True )
-
-                    else
-                        ( List.append filtered [ cmd ]
-                        , case cmd of
-                            ClosePath ->
-                                True
-
-                            _ ->
-                                False
-                        )
-                )
-                ( [], False )
-                cmds
-                |> Tuple.first
-
-        ps =
-            List.foldl
-                (\cmd ( ( x0, y0 ), s ) ->
-                    case cmd of
-                        MoveTo x y ->
-                            ( ( x0 + x, y0 + y ), s ++ " " ++ String.fromInt (x0 + x) ++ "," ++ String.fromInt (y0 + y) )
-
-                        LineTo x y ->
-                            ( ( x0 + x, y0 + y ), s ++ " " ++ String.fromInt (x0 + x) ++ "," ++ String.fromInt (y0 + y) )
-
-                        ClosePath ->
-                            ( ( x0, y0 ), s )
-                )
-                ( ( 0, 0 ), "" )
-                filteredCmds
+        svgstr =
+            gon
+                |> Polygon2d.vertices
+                |> List.map svgPoint
+                |> String.join " "
     in
-    polygon [ strokeWidth "1", fill color, stroke "black", points (Tuple.second ps) ] []
+    polygon [ strokeWidth "1", fill color, stroke "black", points svgstr ] []
 
 
-drawLine : String -> List Command -> Svg Msg
-drawLine color cmds =
+svgPoint : Point2d -> String
+svgPoint p =
     let
-        ps =
-            List.foldl
-                (\cmd ( ( x0, y0 ), s ) ->
-                    case cmd of
-                        MoveTo x y ->
-                            ( ( x0 + x, y0 + y ), s ++ " " ++ String.fromInt (x0 + x) ++ "," ++ String.fromInt (y0 + y) )
-
-                        LineTo x y ->
-                            ( ( x0 + x, y0 + y ), s ++ " " ++ String.fromInt (x0 + x) ++ "," ++ String.fromInt (y0 + y) )
-
-                        ClosePath ->
-                            ( ( x0, y0 ), s )
-                )
-                ( ( 0, 0 ), "" )
-                cmds
+        ( x, y ) =
+            Point2d.coordinates p
     in
-    polyline [ strokeWidth "10", fill "none", stroke color, points (Tuple.second ps) ] []
+    String.fromFloat x ++ "," ++ String.fromFloat y
+
+
+viewPolyline : String -> Polyline2d -> Svg Msg
+viewPolyline color line =
+    let
+        svgstr =
+            line
+                |> Polyline2d.vertices
+                |> List.map svgPoint
+                |> String.join " "
+    in
+    polyline [ strokeWidth "10", fill "none", stroke color, points svgstr ] []
